@@ -23,18 +23,23 @@ function resizeCanvas() {
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
 
-// Drawing State
+// Drawing & Camera State
 let isDrawing = false;
+let isPanning = false;
 let currentTool = 'pen';
 let currentColor = '#ff3b30';
 let currentLine = [];
 let lastPos = null;
+let lastPanPos = null;
+
+let cameraX = 0;
+let cameraY = 0;
 
 // UI Elements
 const toolPen = document.getElementById('tool-pen');
 const toolEraser = document.getElementById('tool-eraser');
+const toolPan = document.getElementById('tool-pan');
 const colorBtns = document.querySelectorAll('.color-btn');
-const clearBtn = document.getElementById('clear-btn');
 const addNoteBtn = document.getElementById('add-note-btn');
 const photoBtn = document.getElementById('photo-btn');
 const photoUpload = document.getElementById('photo-upload');
@@ -48,8 +53,9 @@ const noteColorBtns = document.querySelectorAll('.note-color-btn');
 let selectedNoteColor = '#ffeb3b';
 
 // Tools logic
-toolPen.onclick = () => { currentTool = 'pen'; toolPen.classList.add('active'); toolEraser.classList.remove('active'); };
-toolEraser.onclick = () => { currentTool = 'eraser'; toolEraser.classList.add('active'); toolPen.classList.remove('active'); };
+toolPen.onclick = () => { currentTool = 'pen'; toolPen.classList.add('active'); toolEraser.classList.remove('active'); toolPan.classList.remove('active'); canvas.classList.remove('pan-mode'); };
+toolEraser.onclick = () => { currentTool = 'eraser'; toolEraser.classList.add('active'); toolPen.classList.remove('active'); toolPan.classList.remove('active'); canvas.classList.remove('pan-mode'); };
+toolPan.onclick = () => { currentTool = 'pan'; toolPan.classList.add('active'); toolPen.classList.remove('active'); toolEraser.classList.remove('active'); canvas.classList.add('pan-mode'); };
 
 colorBtns.forEach(btn => {
     btn.onclick = () => {
@@ -78,17 +84,43 @@ function getPointerPos(e) {
 
 function startDrawing(e) {
     if (e.target.closest('.toolbar') || e.target.closest('.sticky-note') || noteModal.style.display === 'block') return;
+    
+    const pos = getPointerPos(e);
+    
+    if (currentTool === 'pan') {
+        isPanning = true;
+        lastPanPos = pos;
+        return;
+    }
+    
     isDrawing = true;
-    lastPos = getPointerPos(e);
+    lastPos = { x: pos.x - cameraX, y: pos.y - cameraY }; // Save in World Coordinates
     currentLine = [{ x: lastPos.x, y: lastPos.y }];
+    
     ctx.beginPath();
-    ctx.moveTo(lastPos.x, lastPos.y);
+    ctx.moveTo(pos.x, pos.y); // Draw on screen coordinates
 }
 
 function draw(e) {
+    if (isPanning) {
+        e.preventDefault();
+        const pos = getPointerPos(e);
+        const dx = pos.x - lastPanPos.x;
+        const dy = pos.y - lastPanPos.y;
+        
+        cameraX += dx;
+        cameraY += dy;
+        lastPanPos = pos;
+        
+        notesContainer.style.transform = `translate(${cameraX}px, ${cameraY}px)`;
+        renderAll();
+        return;
+    }
+    
     if (!isDrawing) return;
-    e.preventDefault(); // prevent scrolling
+    e.preventDefault();
     const pos = getPointerPos(e);
+    const worldPos = { x: pos.x - cameraX, y: pos.y - cameraY };
     
     ctx.lineTo(pos.x, pos.y);
     ctx.strokeStyle = currentTool === 'eraser' ? document.body.style.backgroundColor || '#1a1a2e' : currentColor;
@@ -96,7 +128,6 @@ function draw(e) {
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     
-    // For eraser, use destination-out to actually clear pixels, or just draw background color.
     if (currentTool === 'eraser') {
         ctx.globalCompositeOperation = 'destination-out';
         ctx.strokeStyle = 'rgba(0,0,0,1)';
@@ -106,11 +137,16 @@ function draw(e) {
     
     ctx.stroke();
     
-    currentLine.push({ x: pos.x, y: pos.y });
-    lastPos = pos;
+    currentLine.push({ x: worldPos.x, y: worldPos.y });
+    lastPos = worldPos;
 }
 
 async function stopDrawing() {
+    if (isPanning) {
+        isPanning = false;
+        return;
+    }
+    
     if (!isDrawing) return;
     isDrawing = false;
     ctx.closePath();
@@ -141,10 +177,16 @@ canvas.addEventListener('touchstart', startDrawing, { passive: false });
 canvas.addEventListener('touchmove', draw, { passive: false });
 window.addEventListener('touchend', stopDrawing);
 
-// Firebase Rendering (Polling for simplicity without full SDK, though EventSource is better. We will use short polling for demo)
-let lastLineTime = 0;
-let knownLines = new Set();
+// Firebase Rendering
+let knownLines = new Map();
 let knownNotes = new Set();
+
+function renderAll() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    knownLines.forEach(line => {
+        drawLineData(line);
+    });
+}
 
 async function pollFirebase() {
     try {
@@ -154,21 +196,19 @@ async function pollFirebase() {
         if (!data) return;
 
         // Render Lines
+        let shouldRender = false;
         if (data.lines) {
             Object.entries(data.lines).forEach(([id, line]) => {
                 if (!knownLines.has(id)) {
-                    knownLines.add(id);
-                    // Don't draw our own lines that we just drew to prevent lag
-                    if (Date.now() - line.timestamp > 2000 || line.user !== user.first_name) {
-                        drawLineData(line);
-                    }
+                    knownLines.set(id, line);
+                    shouldRender = true;
                 }
             });
+            if (shouldRender) renderAll();
         } else {
-            // Someone cleared it
             if (knownLines.size > 0) {
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
                 knownLines.clear();
+                renderAll();
             }
         }
 
@@ -211,7 +251,7 @@ function drawLineData(line) {
     if (!line.points || line.points.length < 2) return;
     
     ctx.beginPath();
-    ctx.moveTo(line.points[0].x, line.points[0].y);
+    ctx.moveTo(line.points[0].x + cameraX, line.points[0].y + cameraY); // Apply camera offset
     
     if (line.tool === 'eraser') {
         ctx.globalCompositeOperation = 'destination-out';
@@ -226,23 +266,12 @@ function drawLineData(line) {
     ctx.lineJoin = 'round';
     
     for (let i = 1; i < line.points.length; i++) {
-        ctx.lineTo(line.points[i].x, line.points[i].y);
+        ctx.lineTo(line.points[i].x + cameraX, line.points[i].y + cameraY); // Apply camera offset
     }
     ctx.stroke();
     ctx.closePath();
     ctx.globalCompositeOperation = 'source-over';
 }
-
-// Clear Canvas
-clearBtn.onclick = async () => {
-    if (confirm("Are you sure you want to erase the whole canvas and all notes?")) {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        notesContainer.innerHTML = '';
-        knownLines.clear();
-        knownNotes.clear();
-        await fetch(`${CANVAS_DB}.json`, { method: 'DELETE' });
-    }
-};
 
 // Notes Logic
 addNoteBtn.onclick = () => {
@@ -259,8 +288,8 @@ saveNoteBtn.onclick = async () => {
     const newNote = {
         text: text,
         color: selectedNoteColor,
-        x: Math.random() * (window.innerWidth - 200) + 20,
-        y: Math.random() * (window.innerHeight - 300) + 50,
+        x: Math.random() * (window.innerWidth - 200) + 20 - cameraX, // Drop in world space
+        y: Math.random() * (window.innerHeight - 300) + 50 - cameraY, // Drop in world space
         z: 10,
         author: user.first_name
     };
@@ -395,8 +424,8 @@ photoUpload.onchange = async (e) => {
             const newPhotoNote = {
                 type: 'photo',
                 url: imageUrl,
-                x: Math.random() * (window.innerWidth - 200) + 20,
-                y: Math.random() * (window.innerHeight - 300) + 50,
+                x: Math.random() * (window.innerWidth - 200) + 20 - cameraX, // Drop in world space
+                y: Math.random() * (window.innerHeight - 300) + 50 - cameraY, // Drop in world space
                 z: 10,
                 author: user.first_name
             };
