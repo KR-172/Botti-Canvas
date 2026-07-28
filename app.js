@@ -4,7 +4,13 @@ tg.expand();
 document.documentElement.setAttribute('data-theme', tg.colorScheme || 'dark');
 
 const urlParams = new URLSearchParams(window.location.search);
-let chatId = urlParams.get('chat_id') || 'debug_chat';
+
+// Get the actual chat or user ID from Telegram's native app context
+const initData = tg.initDataUnsafe || {};
+const realChatId = initData.chat?.id || initData.user?.id || 'debug_chat';
+
+// Use URL param if provided, otherwise fallback to the real Telegram ID
+let chatId = urlParams.get('chat_id') || realChatId.toString();
 
 // --- SHARED CANVAS LOGIC ---
 // If the chat is one of these two groups, force them to use the same database path
@@ -50,7 +56,7 @@ let lastPinchCenter = null;
 
 // Firebase State
 let knownLines = new Map();
-let knownNotes = new Set();
+let knownNotes = new Map();
 
 // UI Elements
 const toolPen = document.getElementById('tool-pen');
@@ -60,6 +66,7 @@ const colorWheel = document.getElementById('color-wheel');
 const addNoteBtn = document.getElementById('add-note-btn');
 const photoBtn = document.getElementById('photo-btn');
 const photoUpload = document.getElementById('photo-upload');
+const undoBtn = document.getElementById('undo-btn');
 
 // Modal Elements
 const noteModal = document.getElementById('note-modal');
@@ -308,9 +315,10 @@ async function pollFirebase() {
         if (data.notes) {
             Object.entries(data.notes).forEach(([id, note]) => {
                 if (!knownNotes.has(id)) {
-                    knownNotes.add(id);
+                    knownNotes.set(id, note);
                     renderNoteDOM(id, note);
                 } else {
+                    knownNotes.set(id, note);
                     // Update existing note position
                     const noteEl = document.getElementById(`note-${id}`);
                     if (noteEl && !noteEl.isDragging) {
@@ -543,6 +551,53 @@ photoUpload.onchange = async (e) => {
         photoUpload.value = '';
     }
 };
+
+// Undo Logic
+const undoLastAction = async () => {
+    let mostRecentLine = null;
+    let mostRecentLineId = null;
+    let maxLineTime = 0;
+
+    knownLines.forEach((line, id) => {
+        if (line.user === user.first_name && line.timestamp > maxLineTime) {
+            maxLineTime = line.timestamp;
+            mostRecentLine = line;
+            mostRecentLineId = id;
+        }
+    });
+
+    let mostRecentNoteId = null;
+    let maxNoteTime = 0;
+
+    knownNotes.forEach((note, id) => {
+        if (note.author === user.first_name) {
+            const time = parseInt(id); // Since we use Date.now().toString() for notes
+            if (time > maxNoteTime) {
+                maxNoteTime = time;
+                mostRecentNoteId = id;
+            }
+        }
+    });
+
+    if (maxLineTime === 0 && maxNoteTime === 0) {
+        alert("Nothing to undo!");
+        return;
+    }
+
+    if (maxLineTime > maxNoteTime) {
+        // Delete line
+        knownLines.delete(mostRecentLineId);
+        renderAll();
+        await fetch(`${CANVAS_DB}/lines/${mostRecentLineId}.json`, { method: 'DELETE' });
+    } else {
+        // Delete note
+        document.getElementById(`note-${mostRecentNoteId}`)?.remove();
+        knownNotes.delete(mostRecentNoteId);
+        await fetch(`${CANVAS_DB}/notes/${mostRecentNoteId}.json`, { method: 'DELETE' });
+    }
+};
+
+if (undoBtn) undoBtn.onclick = undoLastAction;
 
 // Start polling
 
