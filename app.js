@@ -19,6 +19,9 @@ const notesContainer = document.getElementById('notes-container');
 function resizeCanvas() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
+    if (typeof renderAll === 'function') {
+        renderAll();
+    }
 }
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
@@ -190,7 +193,19 @@ async function pollFirebase() {
         const res = await fetch(`${CANVAS_DB}.json`);
         const data = await res.json();
         
-        if (!data) return;
+        if (!data) {
+            // If DB is empty, clear local and keep polling
+            if (knownLines.size > 0) {
+                knownLines.clear();
+                renderAll();
+            }
+            if (knownNotes.size > 0) {
+                notesContainer.innerHTML = '';
+                knownNotes.clear();
+            }
+            setTimeout(pollFirebase, 1500);
+            return;
+        }
 
         // Render Lines
         let shouldRender = false;
