@@ -36,6 +36,8 @@ let lastPanPos = null;
 
 let cameraX = 0;
 let cameraY = 0;
+let cameraZoom = 1;
+let initialPinchDistance = null;
 
 // Firebase State
 let knownLines = new Map();
@@ -88,6 +90,18 @@ function getPointerPos(e) {
 function startDrawing(e) {
     if (e.target.closest('.toolbar') || e.target.closest('.sticky-note') || noteModal.style.display === 'block') return;
     
+    // Handle Pinch Start
+    if (e.touches && e.touches.length === 2) {
+        initialPinchDistance = Math.hypot(
+            e.touches[0].clientX - e.touches[1].clientX,
+            e.touches[0].clientY - e.touches[1].clientY
+        );
+        isDrawing = false;
+        isPanning = false;
+        return;
+    }
+    if (e.touches && e.touches.length > 1) return;
+    
     const pos = getPointerPos(e);
     
     if (currentTool === 'pan') {
@@ -97,7 +111,7 @@ function startDrawing(e) {
     }
     
     isDrawing = true;
-    lastPos = { x: pos.x - cameraX, y: pos.y - cameraY }; // Save in World Coordinates
+    lastPos = { x: (pos.x - cameraX) / cameraZoom, y: (pos.y - cameraY) / cameraZoom }; // Save in World Coordinates
     currentLine = [{ x: lastPos.x, y: lastPos.y }];
     
     ctx.beginPath();
@@ -105,6 +119,31 @@ function startDrawing(e) {
 }
 
 function draw(e) {
+    // Handle Pinch Zoom
+    if (e.touches && e.touches.length === 2) {
+        e.preventDefault();
+        if (initialPinchDistance) {
+            const currentPinchDistance = Math.hypot(
+                e.touches[0].clientX - e.touches[1].clientX,
+                e.touches[0].clientY - e.touches[1].clientY
+            );
+            const pinchRatio = currentPinchDistance / initialPinchDistance;
+            
+            const pinchCenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+            const pinchCenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+
+            cameraX = pinchCenterX - (pinchCenterX - cameraX) * pinchRatio;
+            cameraY = pinchCenterY - (pinchCenterY - cameraY) * pinchRatio;
+            cameraZoom *= pinchRatio;
+            
+            initialPinchDistance = currentPinchDistance;
+
+            notesContainer.style.transform = `translate(${cameraX}px, ${cameraY}px) scale(${cameraZoom})`;
+            renderAll();
+        }
+        return;
+    }
+
     if (isPanning) {
         e.preventDefault();
         const pos = getPointerPos(e);
@@ -115,7 +154,7 @@ function draw(e) {
         cameraY += dy;
         lastPanPos = pos;
         
-        notesContainer.style.transform = `translate(${cameraX}px, ${cameraY}px)`;
+        notesContainer.style.transform = `translate(${cameraX}px, ${cameraY}px) scale(${cameraZoom})`;
         renderAll();
         return;
     }
@@ -123,11 +162,11 @@ function draw(e) {
     if (!isDrawing) return;
     e.preventDefault();
     const pos = getPointerPos(e);
-    const worldPos = { x: pos.x - cameraX, y: pos.y - cameraY };
+    const worldPos = { x: (pos.x - cameraX) / cameraZoom, y: (pos.y - cameraY) / cameraZoom };
     
     ctx.lineTo(pos.x, pos.y);
     ctx.strokeStyle = currentTool === 'eraser' ? document.body.style.backgroundColor || '#1a1a2e' : currentColor;
-    ctx.lineWidth = currentTool === 'eraser' ? 30 : 5;
+    ctx.lineWidth = (currentTool === 'eraser' ? 30 : 5) * cameraZoom;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     
@@ -145,6 +184,7 @@ function draw(e) {
 }
 
 async function stopDrawing() {
+    initialPinchDistance = null;
     if (isPanning) {
         isPanning = false;
         return;
@@ -179,6 +219,25 @@ window.addEventListener('mouseup', stopDrawing);
 canvas.addEventListener('touchstart', startDrawing, { passive: false });
 canvas.addEventListener('touchmove', draw, { passive: false });
 window.addEventListener('touchend', stopDrawing);
+
+// Mouse Wheel Zoom
+canvas.addEventListener('wheel', (e) => {
+    if (e.target.closest('.toolbar') || noteModal.style.display === 'block') return;
+    e.preventDefault();
+    
+    const zoomFactor = 1.05;
+    const direction = e.deltaY > 0 ? (1 / zoomFactor) : zoomFactor;
+    
+    const pointerX = e.clientX;
+    const pointerY = e.clientY;
+    
+    cameraX = pointerX - (pointerX - cameraX) * direction;
+    cameraY = pointerY - (pointerY - cameraY) * direction;
+    cameraZoom *= direction;
+    
+    notesContainer.style.transform = `translate(${cameraX}px, ${cameraY}px) scale(${cameraZoom})`;
+    renderAll();
+}, { passive: false });
 
 // Firebase Rendering
 function renderAll() {
@@ -264,22 +323,22 @@ function drawLineData(line) {
     if (!line.points || line.points.length < 2) return;
     
     ctx.beginPath();
-    ctx.moveTo(line.points[0].x + cameraX, line.points[0].y + cameraY); // Apply camera offset
+    ctx.moveTo(line.points[0].x * cameraZoom + cameraX, line.points[0].y * cameraZoom + cameraY); // Apply camera offset
     
     if (line.tool === 'eraser') {
         ctx.globalCompositeOperation = 'destination-out';
         ctx.strokeStyle = 'rgba(0,0,0,1)';
-        ctx.lineWidth = 30;
+        ctx.lineWidth = 30 * cameraZoom;
     } else {
         ctx.globalCompositeOperation = 'source-over';
         ctx.strokeStyle = line.color;
-        ctx.lineWidth = 5;
+        ctx.lineWidth = 5 * cameraZoom;
     }
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     
     for (let i = 1; i < line.points.length; i++) {
-        ctx.lineTo(line.points[i].x + cameraX, line.points[i].y + cameraY); // Apply camera offset
+        ctx.lineTo(line.points[i].x * cameraZoom + cameraX, line.points[i].y * cameraZoom + cameraY); // Apply camera offset
     }
     ctx.stroke();
     ctx.closePath();
@@ -302,8 +361,8 @@ saveNoteBtn.onclick = async () => {
         text: text,
         color: selectedNoteColor,
         font: noteFontSelect.value,
-        x: Math.random() * (window.innerWidth - 200) + 20 - cameraX, // Drop in world space
-        y: Math.random() * (window.innerHeight - 300) + 50 - cameraY, // Drop in world space
+        x: (Math.random() * (window.innerWidth - 200) + 20 - cameraX) / cameraZoom, // Drop in world space
+        y: (Math.random() * (window.innerHeight - 300) + 50 - cameraY) / cameraZoom, // Drop in world space
         z: 10,
         author: user.first_name
     };
@@ -376,8 +435,8 @@ function makeDraggable(el, id) {
         if (!isDragging) return;
         e.preventDefault();
         const pos = getPointerPos(e);
-        const dx = pos.x - startX;
-        const dy = pos.y - startY;
+        const dx = (pos.x - startX) / cameraZoom;
+        const dy = (pos.y - startY) / cameraZoom;
         el.style.left = (initialX + dx) + 'px';
         el.style.top = (initialY + dy) + 'px';
     }
@@ -422,25 +481,28 @@ photoUpload.onchange = async (e) => {
     photoBtn.disabled = true;
     
     try {
-        const formData = new FormData();
-        formData.append('file', file);
+        const base64Image = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (event) => resolve(event.target.result.split(',')[1]);
+            reader.onerror = (error) => reject(error);
+            reader.readAsDataURL(file);
+        });
         
-        const res = await fetch('https://telegra.ph/upload', {
+        const res = await fetch('/api/upload', {
             method: 'POST',
-            body: formData
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image: base64Image })
         });
         
         const data = await res.json();
         
-        if (data && data[0] && data[0].src) {
-            const imageUrl = 'https://telegra.ph' + data[0].src;
-            
+        if (res.ok && data.url) {
             const noteId = Date.now().toString();
             const newPhotoNote = {
                 type: 'photo',
-                url: imageUrl,
-                x: Math.random() * (window.innerWidth - 200) + 20 - cameraX, // Drop in world space
-                y: Math.random() * (window.innerHeight - 300) + 50 - cameraY, // Drop in world space
+                url: data.url,
+                x: (Math.random() * (window.innerWidth - 200) + 20 - cameraX) / cameraZoom, // Drop in world space
+                y: (Math.random() * (window.innerHeight - 300) + 50 - cameraY) / cameraZoom, // Drop in world space
                 z: 10,
                 author: user.first_name
             };
@@ -450,7 +512,7 @@ photoUpload.onchange = async (e) => {
                 body: JSON.stringify(newPhotoNote)
             });
         } else {
-            alert("Upload failed. Telegram might have rejected the image.");
+            alert("Upload failed. Error: " + (data.error || "Unknown"));
         }
     } catch (err) {
         console.error("Upload error:", err);
