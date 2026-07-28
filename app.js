@@ -24,7 +24,6 @@ function resizeCanvas() {
     }
 }
 window.addEventListener('resize', resizeCanvas);
-resizeCanvas();
 
 // Drawing & Camera State
 let isDrawing = false;
@@ -464,4 +463,6 @@ photoUpload.onchange = async (e) => {
 };
 
 // Start polling
+
+resizeCanvas(); // Initial setup
 pollFirebase();
