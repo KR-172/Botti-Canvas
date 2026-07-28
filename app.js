@@ -7,7 +7,14 @@ const urlParams = new URLSearchParams(window.location.search);
 
 // Get the actual chat or user ID from Telegram's native app context
 const initData = tg.initDataUnsafe || {};
-const realChatId = initData.chat?.id || initData.user?.id || 'debug_chat';
+
+// The bot passes the chat ID via deep link startapp, e.g. "canvas_chat_-100123..."
+let startParamChatId = null;
+if (initData.start_param && initData.start_param.startsWith('canvas_chat_')) {
+    startParamChatId = initData.start_param.replace('canvas_chat_', '');
+}
+
+const realChatId = startParamChatId || initData.chat?.id || initData.user?.id || 'debug_chat';
 
 // Use URL param if provided, otherwise fallback to the real Telegram ID
 let chatId = urlParams.get('chat_id') || realChatId.toString();
