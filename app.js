@@ -4,7 +4,15 @@ tg.expand();
 document.documentElement.setAttribute('data-theme', tg.colorScheme || 'dark');
 
 const urlParams = new URLSearchParams(window.location.search);
-const chatId = urlParams.get('chat_id') || 'debug_chat';
+let chatId = urlParams.get('chat_id') || 'debug_chat';
+
+// --- SHARED CANVAS LOGIC ---
+// If the chat is one of these two groups, force them to use the same database path
+const sharedGroups = ['-1002348820970', '-1002711105429'];
+if (sharedGroups.includes(chatId)) {
+    chatId = 'shared_group_canvas';
+}
+
 const user = tg.initDataUnsafe?.user || { id: 123, first_name: 'Debug User' };
 
 // We will use the same Firebase database URL.
