@@ -39,7 +39,7 @@ let cameraY = 0;
 const toolPen = document.getElementById('tool-pen');
 const toolEraser = document.getElementById('tool-eraser');
 const toolPan = document.getElementById('tool-pan');
-const colorBtns = document.querySelectorAll('.color-btn');
+const colorWheel = document.getElementById('color-wheel');
 const addNoteBtn = document.getElementById('add-note-btn');
 const photoBtn = document.getElementById('photo-btn');
 const photoUpload = document.getElementById('photo-upload');
@@ -49,6 +49,7 @@ const noteModal = document.getElementById('note-modal');
 const closeModal = document.getElementById('close-modal');
 const saveNoteBtn = document.getElementById('save-note-btn');
 const noteText = document.getElementById('note-text');
+const noteFontSelect = document.getElementById('note-font-select');
 const noteColorBtns = document.querySelectorAll('.note-color-btn');
 let selectedNoteColor = '#ffeb3b';
 
@@ -57,14 +58,10 @@ toolPen.onclick = () => { currentTool = 'pen'; toolPen.classList.add('active'); 
 toolEraser.onclick = () => { currentTool = 'eraser'; toolEraser.classList.add('active'); toolPen.classList.remove('active'); toolPan.classList.remove('active'); canvas.classList.remove('pan-mode'); };
 toolPan.onclick = () => { currentTool = 'pan'; toolPan.classList.add('active'); toolPen.classList.remove('active'); toolEraser.classList.remove('active'); canvas.classList.add('pan-mode'); };
 
-colorBtns.forEach(btn => {
-    btn.onclick = () => {
-        colorBtns.forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        currentColor = btn.dataset.color;
-        toolPen.click(); // Auto switch back to pen
-    };
-});
+colorWheel.oninput = (e) => {
+    currentColor = e.target.value;
+    toolPen.click(); // Auto switch back to pen when picking a color
+};
 
 noteColorBtns.forEach(btn => {
     btn.onclick = () => {
@@ -288,6 +285,7 @@ saveNoteBtn.onclick = async () => {
     const newNote = {
         text: text,
         color: selectedNoteColor,
+        font: noteFontSelect.value,
         x: Math.random() * (window.innerWidth - 200) + 20 - cameraX, // Drop in world space
         y: Math.random() * (window.innerHeight - 300) + 50 - cameraY, // Drop in world space
         z: 10,
@@ -319,10 +317,11 @@ function renderNoteDOM(id, note) {
             <img src="${note.url}" alt="Pinned Photo">
         `;
     } else {
+        const fontClass = note.font || 'font-inter';
         el.innerHTML = `
             <button class="note-delete" onclick="deleteNote('${id}')">✖</button>
             <div class="note-author">${note.author}</div>
-            <div class="note-content">${note.text.replace(/\\n/g, '<br>')}</div>
+            <div class="note-content ${fontClass}">${note.text.replace(/\\n/g, '<br>')}</div>
         `;
     }
     

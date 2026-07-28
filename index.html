@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Ultimate Canvas</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Caveat:wght@600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=1">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Caveat:wght@600&family=Roboto+Mono:wght@500&family=Pacifico&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=2">
 </head>
 <body>
     <!-- The Drawing Layer -->
@@ -20,13 +20,10 @@
         <div class="tools-section">
             <button class="tool-btn active" id="tool-pen">✏️</button>
             <button class="tool-btn" id="tool-eraser">🧽</button>
+            <button class="tool-btn" id="tool-pan">🖐️</button>
             
             <div class="color-picker">
-                <button class="color-btn active" data-color="#ff3b30" style="background: #ff3b30;"></button>
-                <button class="color-btn" data-color="#007aff" style="background: #007aff;"></button>
-                <button class="color-btn" data-color="#34c759" style="background: #34c759;"></button>
-                <button class="color-btn" data-color="#ffffff" style="background: #ffffff;"></button>
-                <button class="color-btn" data-color="#ffcc00" style="background: #ffcc00;"></button>
+                <input type="color" id="color-wheel" value="#ff3b30" class="color-wheel-input">
             </div>
         </div>
         
@@ -34,7 +31,6 @@
             <input type="file" id="photo-upload" accept="image/*" style="display: none;">
             <button class="action-btn" id="photo-btn">📷 Photo</button>
             <button class="action-btn" id="add-note-btn">📝 Note</button>
-            <button class="action-btn danger" id="clear-btn">🗑️</button>
         </div>
     </div>
 
@@ -44,6 +40,16 @@
             <span class="close-btn" id="close-modal">&times;</span>
             <h2>New Note</h2>
             <textarea id="note-text" rows="4" placeholder="Type something..."></textarea>
+            
+            <div class="note-options">
+                <select id="note-font-select" class="glass-select">
+                    <option value="font-inter">Modern (Inter)</option>
+                    <option value="font-caveat">Handwriting (Caveat)</option>
+                    <option value="font-roboto-mono">Typewriter (Roboto Mono)</option>
+                    <option value="font-pacifico">Cursive (Pacifico)</option>
+                </select>
+            </div>
+            
             <div class="note-colors">
                 <button class="note-color-btn active" data-color="#ffeb3b" style="background: #ffeb3b;"></button>
                 <button class="note-color-btn" data-color="#ff8a80" style="background: #ff8a80;"></button>
@@ -54,6 +60,6 @@
         </div>
     </div>
 
-    <script src="app.js?v=1"></script>
+    <script src="app.js?v=2"></script>
 </body>
 </html>
