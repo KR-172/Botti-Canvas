@@ -38,6 +38,10 @@ let lastPanPos = null;
 let cameraX = 0;
 let cameraY = 0;
 
+// Firebase State
+let knownLines = new Map();
+let knownNotes = new Set();
+
 // UI Elements
 const toolPen = document.getElementById('tool-pen');
 const toolEraser = document.getElementById('tool-eraser');
@@ -178,10 +182,8 @@ canvas.addEventListener('touchmove', draw, { passive: false });
 window.addEventListener('touchend', stopDrawing);
 
 // Firebase Rendering
-let knownLines = new Map();
-let knownNotes = new Set();
-
 function renderAll() {
+    if (!knownLines) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     knownLines.forEach(line => {
         drawLineData(line);
