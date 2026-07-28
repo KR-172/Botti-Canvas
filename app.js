@@ -38,6 +38,7 @@ let cameraX = 0;
 let cameraY = 0;
 let cameraZoom = 1;
 let initialPinchDistance = null;
+let lastPinchCenter = null;
 
 // Firebase State
 let knownLines = new Map();
@@ -96,6 +97,10 @@ function startDrawing(e) {
             e.touches[0].clientX - e.touches[1].clientX,
             e.touches[0].clientY - e.touches[1].clientY
         );
+        lastPinchCenter = {
+            x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+            y: (e.touches[0].clientY + e.touches[1].clientY) / 2
+        };
         isDrawing = false;
         isPanning = false;
         return;
@@ -122,7 +127,7 @@ function draw(e) {
     // Handle Pinch Zoom
     if (e.touches && e.touches.length === 2) {
         e.preventDefault();
-        if (initialPinchDistance) {
+        if (initialPinchDistance && lastPinchCenter) {
             const currentPinchDistance = Math.hypot(
                 e.touches[0].clientX - e.touches[1].clientX,
                 e.touches[0].clientY - e.touches[1].clientY
@@ -132,11 +137,17 @@ function draw(e) {
             const pinchCenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
             const pinchCenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
 
+            // Pan based on movement of the pinch center
+            cameraX += pinchCenterX - lastPinchCenter.x;
+            cameraY += pinchCenterY - lastPinchCenter.y;
+
+            // Zoom around the new center
             cameraX = pinchCenterX - (pinchCenterX - cameraX) * pinchRatio;
             cameraY = pinchCenterY - (pinchCenterY - cameraY) * pinchRatio;
             cameraZoom *= pinchRatio;
             
             initialPinchDistance = currentPinchDistance;
+            lastPinchCenter = { x: pinchCenterX, y: pinchCenterY };
 
             notesContainer.style.transform = `translate(${cameraX}px, ${cameraY}px) scale(${cameraZoom})`;
             renderAll();
@@ -185,6 +196,7 @@ function draw(e) {
 
 async function stopDrawing() {
     initialPinchDistance = null;
+    lastPinchCenter = null;
     if (isPanning) {
         isPanning = false;
         return;
