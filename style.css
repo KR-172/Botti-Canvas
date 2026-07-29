@@ -26,11 +26,26 @@ html[data-theme="light"] {
 body {
     font-family: 'Inter', sans-serif;
     background-color: var(--bg-color);
+    background-image: radial-gradient(circle, var(--glass-border) 1px, transparent 1px);
+    background-size: 20px 20px;
+    background-position: 0 0;
     color: var(--text-color);
     overflow: hidden; /* Prevent scrolling */
     touch-action: none; /* Prevent pinch zoom and scroll on mobile */
     height: 100vh;
     width: 100vw;
+}
+
+#drawing-canvas, #preview-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 1;
+}
+
+#preview-canvas {
+    z-index: 2;
+    pointer-events: none; /* Let touches pass through to drawing canvas */
 }
 
 canvas {
@@ -156,17 +171,34 @@ canvas.pan-mode:active {
 /* Sticky Notes */
 .sticky-note {
     position: absolute;
-    width: 150px;
-    min-height: 150px;
+    width: 200px;
+    min-height: 200px;
+    background: #ffeb3b;
+    color: #000;
     padding: 15px;
-    box-shadow: 2px 5px 15px rgba(0,0,0,0.2);
-    pointer-events: auto;
-    font-family: 'Caveat', cursive;
-    font-size: 1.3rem;
-    color: #333;
+    box-shadow: 2px 4px 10px rgba(0,0,0,0.3);
+    border-radius: 4px;
     cursor: grab;
-    transform: rotate(-2deg);
-    transition: transform 0.1s, box-shadow 0.1s;
+    user-select: none;
+    display: flex;
+    flex-direction: column;
+}
+
+.sticky-note.raw-text-note {
+    background: transparent !important;
+    box-shadow: none;
+    width: max-content;
+    min-height: unset;
+    padding: 0;
+}
+
+.sticky-note.stamp-note {
+    background: transparent !important;
+    box-shadow: none;
+    width: max-content;
+    min-height: unset;
+    padding: 0;
+    font-size: 64px;
 }
 
 .sticky-note:active {
@@ -317,4 +349,64 @@ textarea {
     border-radius: 12px;
     font-weight: bold;
     cursor: pointer;
+}
+
+/* Presence Bubbles */
+#presence-container {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    display: flex;
+    flex-direction: row-reverse;
+    z-index: 1000;
+    pointer-events: none;
+}
+
+.presence-bubble {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    color: white;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-weight: bold;
+    font-size: 14px;
+    border: 2px solid var(--bg-color);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    margin-left: -10px; /* Overlap effect */
+    animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    text-transform: uppercase;
+}
+
+@keyframes popIn {
+    0% { transform: scale(0); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+/* Stamp Menu */
+#stamp-menu {
+    position: absolute;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 10px;
+    padding: 10px;
+    z-index: 1000;
+    border-radius: 12px;
+}
+
+.stamp-btn {
+    background: transparent;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    transition: transform 0.2s;
+    opacity: 0.5;
+}
+
+.stamp-btn.active {
+    opacity: 1;
+    transform: scale(1.3);
 }

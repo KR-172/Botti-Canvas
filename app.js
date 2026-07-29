@@ -35,11 +35,15 @@ const CANVAS_DB = `${FIREBASE_URL}/canvas/chat_${chatId}`;
 // Setup Canvas
 const canvas = document.getElementById('drawing-canvas');
 const ctx = canvas.getContext('2d', { willReadFrequently: true });
+const previewCanvas = document.getElementById('preview-canvas');
+const previewCtx = previewCanvas.getContext('2d');
 const notesContainer = document.getElementById('notes-container');
 
 function resizeCanvas() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
+    previewCanvas.width = window.innerWidth;
+    previewCanvas.height = window.innerHeight;
     if (typeof renderAll === 'function') {
         renderAll();
     }
@@ -71,14 +75,30 @@ const toolPencil = document.getElementById('tool-pencil');
 const toolHighlighter = document.getElementById('tool-highlighter');
 const toolRainbow = document.getElementById('tool-rainbow');
 const toolLaser = document.getElementById('tool-laser');
+const toolLine = document.getElementById('tool-line');
+const toolRect = document.getElementById('tool-rect');
+const toolCircle = document.getElementById('tool-circle');
+const toolText = document.getElementById('tool-text');
+const toolStamp = document.getElementById('tool-stamp');
 const toolEraser = document.getElementById('tool-eraser');
 const toolPan = document.getElementById('tool-pan');
-const allTools = [toolPen, toolPencil, toolHighlighter, toolRainbow, toolLaser, toolEraser, toolPan];
+const allTools = [toolPen, toolPencil, toolHighlighter, toolRainbow, toolLaser, toolLine, toolRect, toolCircle, toolText, toolStamp, toolEraser, toolPan];
 const colorWheel = document.getElementById('color-wheel');
+const stampMenu = document.getElementById('stamp-menu');
+
+// ... rest of UI ...
 const addNoteBtn = document.getElementById('add-note-btn');
 const photoBtn = document.getElementById('photo-btn');
 const photoUpload = document.getElementById('photo-upload');
 const undoBtn = document.getElementById('undo-btn');
+const fillToggleBtn = document.getElementById('fill-toggle-btn');
+let isShapeFilled = false;
+if (fillToggleBtn) {
+    fillToggleBtn.onclick = () => {
+        isShapeFilled = !isShapeFilled;
+        fillToggleBtn.innerText = isShapeFilled ? '🟩 Fill: ON' : '🟩 Fill: OFF';
+    };
+}
 
 // Modal Elements
 const noteModal = document.getElementById('note-modal');
@@ -92,12 +112,17 @@ let selectedNoteColor = '#ffeb3b';
 // Tools logic
 function setTool(toolName, btnEl) {
     currentTool = toolName;
-    allTools.forEach(b => b.classList.remove('active'));
-    btnEl.classList.add('active');
+    allTools.forEach(b => b?.classList.remove('active'));
+    btnEl?.classList.add('active');
     if (toolName === 'pan') {
         canvas.classList.add('pan-mode');
     } else {
         canvas.classList.remove('pan-mode');
+    }
+    if (toolName === 'stamp' && stampMenu) {
+        stampMenu.style.display = 'flex';
+    } else if (stampMenu) {
+        stampMenu.style.display = 'none';
     }
 }
 
@@ -106,8 +131,22 @@ toolPencil?.addEventListener('click', () => setTool('pencil', toolPencil));
 toolHighlighter?.addEventListener('click', () => setTool('highlighter', toolHighlighter));
 toolRainbow?.addEventListener('click', () => setTool('rainbow', toolRainbow));
 toolLaser?.addEventListener('click', () => setTool('laser', toolLaser));
+toolLine?.addEventListener('click', () => setTool('line', toolLine));
+toolRect?.addEventListener('click', () => setTool('rect', toolRect));
+toolCircle?.addEventListener('click', () => setTool('circle', toolCircle));
+toolText?.addEventListener('click', () => setTool('text', toolText));
+toolStamp?.addEventListener('click', () => setTool('stamp', toolStamp));
 toolEraser?.addEventListener('click', () => setTool('eraser', toolEraser));
 toolPan?.addEventListener('click', () => setTool('pan', toolPan));
+
+let currentStamp = '⭐';
+document.querySelectorAll('.stamp-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+        document.querySelectorAll('.stamp-btn').forEach(b => b.classList.remove('active'));
+        e.target.classList.add('active');
+        currentStamp = e.target.dataset.stamp;
+    });
+});
 
 if (colorWheel) {
     colorWheel.oninput = (e) => {
@@ -133,7 +172,7 @@ function getPointerPos(e) {
 }
 
 function startDrawing(e) {
-    if (e.target.closest('.toolbar') || e.target.closest('.sticky-note') || noteModal.style.display === 'block') return;
+    if (e.target.closest('.toolbar') || e.target.closest('.sticky-note') || e.target.closest('#stamp-menu') || noteModal.style.display === 'block') return;
     
     // Handle Pinch Start
     if (e.touches && e.touches.length === 2) {
@@ -152,6 +191,30 @@ function startDrawing(e) {
     if (e.touches && e.touches.length > 1) return;
     
     const pos = getPointerPos(e);
+    const worldPos = { x: (pos.x - cameraX) / cameraZoom, y: (pos.y - cameraY) / cameraZoom };
+    
+    if (currentTool === 'text') {
+        noteText.value = '';
+        noteModal.style.display = 'block';
+        noteModal.dataset.dropX = worldPos.x;
+        noteModal.dataset.dropY = worldPos.y;
+        noteModal.dataset.type = 'raw-text';
+        return;
+    }
+    
+    if (currentTool === 'stamp') {
+        const noteId = Date.now().toString();
+        const newStamp = {
+            type: 'stamp',
+            text: currentStamp,
+            x: worldPos.x - 30, // center offset roughly
+            y: worldPos.y - 30,
+            z: 10,
+            author: user.first_name
+        };
+        fetch(`${CANVAS_DB}/notes/${noteId}.json`, { method: 'PUT', body: JSON.stringify(newStamp) });
+        return;
+    }
     
     if (currentTool === 'pan') {
         isPanning = true;
@@ -162,6 +225,11 @@ function startDrawing(e) {
     isDrawing = true;
     lastPos = { x: (pos.x - cameraX) / cameraZoom, y: (pos.y - cameraY) / cameraZoom }; // Save in World Coordinates
     currentLine = [{ x: lastPos.x, y: lastPos.y }];
+    
+    if (['rect', 'circle', 'line'].includes(currentTool)) {
+        previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+        return;
+    }
     
     ctx.beginPath();
     ctx.moveTo(pos.x, pos.y); // Draw on screen coordinates
@@ -227,6 +295,42 @@ function draw(e) {
     }
     const worldPos = { x: (pos.x - cameraX) / cameraZoom, y: (pos.y - cameraY) / cameraZoom };
     
+    if (['rect', 'circle', 'line'].includes(currentTool)) {
+        previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+        previewCtx.strokeStyle = currentColor;
+        previewCtx.lineWidth = 5 * cameraZoom;
+        previewCtx.lineCap = 'round';
+        previewCtx.lineJoin = 'round';
+        previewCtx.beginPath();
+        
+        const startScreenX = currentLine[0].x * cameraZoom + cameraX;
+        const startScreenY = currentLine[0].y * cameraZoom + cameraY;
+        
+        if (currentTool === 'rect') {
+            if (isShapeFilled) {
+                previewCtx.fillStyle = currentColor;
+                previewCtx.fillRect(startScreenX, startScreenY, pos.x - startScreenX, pos.y - startScreenY);
+            }
+            previewCtx.strokeRect(startScreenX, startScreenY, pos.x - startScreenX, pos.y - startScreenY);
+        } else if (currentTool === 'circle') {
+            const rx = Math.abs(pos.x - startScreenX);
+            const ry = Math.abs(pos.y - startScreenY);
+            previewCtx.ellipse(startScreenX, startScreenY, rx, ry, 0, 0, Math.PI * 2);
+            if (isShapeFilled) {
+                previewCtx.fillStyle = currentColor;
+                previewCtx.fill();
+            }
+            previewCtx.stroke();
+        } else if (currentTool === 'line') {
+            previewCtx.moveTo(startScreenX, startScreenY);
+            previewCtx.lineTo(pos.x, pos.y);
+            previewCtx.stroke();
+        }
+        
+        currentLine[1] = worldPos;
+        return;
+    }
+    
     ctx.lineTo(pos.x, pos.y);
     
     ctx.lineCap = 'round';
@@ -279,6 +383,23 @@ async function stopDrawing() {
     
     if (!isDrawing) return;
     isDrawing = false;
+    
+    if (['rect', 'circle', 'line'].includes(currentTool)) {
+        previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+        if (currentLine.length < 2) return;
+        const lineData = {
+            points: currentLine,
+            color: currentColor,
+            tool: currentTool,
+            fill: isShapeFilled,
+            user: user.first_name,
+            timestamp: Date.now()
+        };
+        fetch(`${CANVAS_DB}/lines.json`, { method: 'POST', body: JSON.stringify(lineData) });
+        currentLine = [];
+        return;
+    }
+
     ctx.closePath();
     ctx.globalCompositeOperation = 'source-over';
     
@@ -422,6 +543,43 @@ async function pollFirebase() {
 function drawLineData(line) {
     if (!line.points || line.points.length < 2) return;
     
+    if (['rect', 'circle', 'line'].includes(line.tool)) {
+        ctx.beginPath();
+        ctx.strokeStyle = line.color;
+        ctx.lineWidth = 5 * cameraZoom;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.shadowBlur = 0;
+        
+        const startX = line.points[0].x * cameraZoom + cameraX;
+        const startY = line.points[0].y * cameraZoom + cameraY;
+        const endX = line.points[1].x * cameraZoom + cameraX;
+        const endY = line.points[1].y * cameraZoom + cameraY;
+        
+        if (line.tool === 'rect') {
+            if (line.fill) {
+                ctx.fillStyle = line.color;
+                ctx.fillRect(startX, startY, endX - startX, endY - startY);
+            }
+            ctx.strokeRect(startX, startY, endX - startX, endY - startY);
+        } else if (line.tool === 'circle') {
+            const rx = Math.abs(endX - startX);
+            const ry = Math.abs(endY - startY);
+            ctx.ellipse(startX, startY, rx, ry, 0, 0, Math.PI * 2);
+            if (line.fill) {
+                ctx.fillStyle = line.color;
+                ctx.fill();
+            }
+            ctx.stroke();
+        } else if (line.tool === 'line') {
+            ctx.moveTo(startX, startY);
+            ctx.lineTo(endX, endY);
+            ctx.stroke();
+        }
+        return;
+    }
+    
     ctx.beginPath();
     ctx.moveTo(line.points[0].x * cameraZoom + cameraX, line.points[0].y * cameraZoom + cameraY);
     
@@ -486,17 +644,31 @@ saveNoteBtn.onclick = async () => {
     if (!text) return;
     
     const noteId = Date.now().toString();
+    const type = noteModal.dataset.type || 'text';
+    
+    let finalX = (Math.random() * (window.innerWidth - 200) + 20 - cameraX) / cameraZoom;
+    let finalY = (Math.random() * (window.innerHeight - 300) + 50 - cameraY) / cameraZoom;
+    
+    if (noteModal.dataset.dropX && noteModal.dataset.dropY) {
+        finalX = parseFloat(noteModal.dataset.dropX);
+        finalY = parseFloat(noteModal.dataset.dropY);
+    }
+    
     const newNote = {
+        type: type,
         text: text,
         color: selectedNoteColor,
         font: noteFontSelect.value,
-        x: (Math.random() * (window.innerWidth - 200) + 20 - cameraX) / cameraZoom, // Drop in world space
-        y: (Math.random() * (window.innerHeight - 300) + 50 - cameraY) / cameraZoom, // Drop in world space
+        x: finalX,
+        y: finalY,
         z: 10,
         author: user.first_name
     };
     
     noteModal.style.display = 'none';
+    delete noteModal.dataset.dropX;
+    delete noteModal.dataset.dropY;
+    delete noteModal.dataset.type;
     
     await fetch(`${CANVAS_DB}/notes/${noteId}.json`, {
         method: 'PUT',
@@ -520,6 +692,17 @@ function renderNoteDOM(id, note) {
             <div class="note-author">${note.author}</div>
             <img src="${note.url}" alt="Pinned Photo">
         `;
+    } else if (note.type === 'raw-text') {
+        el.classList.add('raw-text-note');
+        const fontClass = note.font || 'font-inter';
+        el.innerHTML = `
+            <div class="note-content ${fontClass}" style="color: ${note.color}; font-size: 32px; white-space: nowrap;">${note.text.replace(/\\n/g, '<br>')}</div>
+        `;
+        el.ondblclick = () => deleteNote(id);
+    } else if (note.type === 'stamp') {
+        el.classList.add('stamp-note');
+        el.innerHTML = note.text;
+        el.ondblclick = () => deleteNote(id);
     } else {
         const fontClass = note.font || 'font-inter';
         el.innerHTML = `

@@ -11,6 +11,8 @@
 <body>
     <!-- The Drawing Layer -->
     <canvas id="drawing-canvas"></canvas>
+    <!-- Live Preview Layer for Shapes -->
+    <canvas id="preview-canvas"></canvas>
 
     <!-- Presence Bubbles Container -->
     <div id="presence-container"></div>
@@ -25,6 +27,11 @@
             <button class="tool-btn" id="tool-pencil" title="Pencil">🖍️</button>
             <button class="tool-btn" id="tool-highlighter" title="Highlighter">🖊️</button>
             <button class="tool-btn" id="tool-rainbow" title="Rainbow">🌈</button>
+            <button class="tool-btn" id="tool-line" title="Straight Line">📏</button>
+            <button class="tool-btn" id="tool-rect" title="Rectangle">🟦</button>
+            <button class="tool-btn" id="tool-circle" title="Circle">⭕</button>
+            <button class="tool-btn" id="tool-text" title="Raw Text">Aa</button>
+            <button class="tool-btn" id="tool-stamp" title="Stamp">⭐</button>
             <button class="tool-btn" id="tool-laser" title="Laser Pointer">🔴</button>
             <button class="tool-btn" id="tool-eraser" title="Eraser">🧽</button>
             <button class="tool-btn" id="tool-pan" title="Pan">🖐️</button>
@@ -35,6 +42,7 @@
         </div>
         
         <div class="actions-section">
+            <button class="action-btn" id="fill-toggle-btn">🟩 Fill: OFF</button>
             <button class="action-btn" id="undo-btn">↩️ Undo</button>
             <input type="file" id="photo-upload" accept="image/*" style="display: none;">
             <button class="action-btn" id="photo-btn">📷 Photo</button>
@@ -68,6 +76,18 @@
         </div>
     </div>
 
-    <script src="app.js?v=6"></script>
+    <!-- Floating Submenu for Stamps -->
+    <div id="stamp-menu" class="glass-panel" style="display: none;">
+        <button class="stamp-btn active" data-stamp="⭐">⭐</button>
+        <button class="stamp-btn" data-stamp="✅">✅</button>
+        <button class="stamp-btn" data-stamp="❌">❌</button>
+        <button class="stamp-btn" data-stamp="❓">❓</button>
+        <button class="stamp-btn" data-stamp="💡">💡</button>
+        <button class="stamp-btn" data-stamp="❤️">❤️</button>
+        <button class="stamp-btn" data-stamp="🔥">🔥</button>
+        <button class="stamp-btn" data-stamp="👀">👀</button>
+    </div>
+
+    <script src="app.js?v=7"></script>
 </body>
 </html>
