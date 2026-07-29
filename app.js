@@ -726,25 +726,43 @@ window.deleteNote = async (id) => {
 let highestZ = 10;
 function makeDraggable(el, id) {
     let isDragging = false;
+    let holdTimer = null;
     let startX, startY, initialX, initialY;
     
     function startDrag(e) {
-        if (e.target.classList.contains('note-delete')) return;
-        isDragging = true;
-        el.isDragging = true;
-        
-        highestZ++;
-        el.style.zIndex = highestZ;
-        
+        if (e.target.closest('.note-delete')) return;
         const pos = getPointerPos(e);
         startX = pos.x;
         startY = pos.y;
-        initialX = parseFloat(el.style.left);
-        initialY = parseFloat(el.style.top);
+        initialX = parseFloat(el.style.left) || 0;
+        initialY = parseFloat(el.style.top) || 0;
+        
+        holdTimer = setTimeout(() => {
+            isDragging = true;
+            el.isDragging = true;
+            highestZ++;
+            el.style.zIndex = highestZ;
+            el.classList.add('picked-up');
+            
+            // Haptic feedback if available
+            if (window.navigator && window.navigator.vibrate) {
+                window.navigator.vibrate(50);
+            }
+        }, 300); // 300ms hold to pick up
     }
     
     function drag(e) {
-        if (!isDragging) return;
+        if (!isDragging) {
+            if (holdTimer) {
+                const pos = getPointerPos(e);
+                // If they moved their finger significantly before the timer pops, cancel pickup
+                if (Math.abs(pos.x - startX) > 10 || Math.abs(pos.y - startY) > 10) {
+                    clearTimeout(holdTimer);
+                    holdTimer = null;
+                }
+            }
+            return;
+        }
         e.preventDefault();
         const pos = getPointerPos(e);
         const dx = (pos.x - startX) / cameraZoom;
@@ -754,9 +772,14 @@ function makeDraggable(el, id) {
     }
     
     function stopDrag() {
+        if (holdTimer) {
+            clearTimeout(holdTimer);
+            holdTimer = null;
+        }
         if (!isDragging) return;
         isDragging = false;
         el.isDragging = false;
+        el.classList.remove('picked-up');
         
         // Sync new position
         fetch(`${CANVAS_DB}/notes/${id}.json`, {
@@ -770,10 +793,10 @@ function makeDraggable(el, id) {
     }
     
     el.addEventListener('mousedown', startDrag);
-    window.addEventListener('mousemove', drag);
+    window.addEventListener('mousemove', drag, { passive: false });
     window.addEventListener('mouseup', stopDrag);
     
-    el.addEventListener('touchstart', startDrag, { passive: false });
+    el.addEventListener('touchstart', startDrag, { passive: true });
     window.addEventListener('touchmove', drag, { passive: false });
     window.addEventListener('touchend', stopDrag);
 }
