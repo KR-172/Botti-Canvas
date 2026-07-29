@@ -6,11 +6,14 @@
     <title>Ultimate Canvas</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Caveat:wght@600&family=Roboto+Mono:wght@500&family=Pacifico&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=2">
+    <link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
     <!-- The Drawing Layer -->
     <canvas id="drawing-canvas"></canvas>
+
+    <!-- Presence Bubbles Container -->
+    <div id="presence-container"></div>
 
     <!-- The Sticky Note Layer -->
     <div id="notes-container"></div>
@@ -18,9 +21,13 @@
     <!-- UI Overlay Layer -->
     <div class="toolbar glass-panel">
         <div class="tools-section">
-            <button class="tool-btn active" id="tool-pen">✏️</button>
-            <button class="tool-btn" id="tool-eraser">🧽</button>
-            <button class="tool-btn" id="tool-pan">🖐️</button>
+            <button class="tool-btn active" id="tool-pen" title="Pen">✏️</button>
+            <button class="tool-btn" id="tool-pencil" title="Pencil">🖍️</button>
+            <button class="tool-btn" id="tool-highlighter" title="Highlighter">🖊️</button>
+            <button class="tool-btn" id="tool-rainbow" title="Rainbow">🌈</button>
+            <button class="tool-btn" id="tool-laser" title="Laser Pointer">🔴</button>
+            <button class="tool-btn" id="tool-eraser" title="Eraser">🧽</button>
+            <button class="tool-btn" id="tool-pan" title="Pan">🖐️</button>
             
             <div class="color-picker">
                 <input type="color" id="color-wheel" value="#ff3b30" class="color-wheel-input">
@@ -61,6 +68,6 @@
         </div>
     </div>
 
-    <script src="app.js?v=5"></script>
+    <script src="app.js?v=6"></script>
 </body>
 </html>

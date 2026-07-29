@@ -101,18 +101,20 @@ function setTool(toolName, btnEl) {
     }
 }
 
-toolPen.onclick = () => setTool('pen', toolPen);
-toolPencil.onclick = () => setTool('pencil', toolPencil);
-toolHighlighter.onclick = () => setTool('highlighter', toolHighlighter);
-toolRainbow.onclick = () => setTool('rainbow', toolRainbow);
-toolLaser.onclick = () => setTool('laser', toolLaser);
-toolEraser.onclick = () => setTool('eraser', toolEraser);
-toolPan.onclick = () => setTool('pan', toolPan);
+toolPen?.addEventListener('click', () => setTool('pen', toolPen));
+toolPencil?.addEventListener('click', () => setTool('pencil', toolPencil));
+toolHighlighter?.addEventListener('click', () => setTool('highlighter', toolHighlighter));
+toolRainbow?.addEventListener('click', () => setTool('rainbow', toolRainbow));
+toolLaser?.addEventListener('click', () => setTool('laser', toolLaser));
+toolEraser?.addEventListener('click', () => setTool('eraser', toolEraser));
+toolPan?.addEventListener('click', () => setTool('pan', toolPan));
 
-colorWheel.oninput = (e) => {
-    currentColor = e.target.value;
-    toolPen.click(); // Auto switch back to pen when picking a color
-};
+if (colorWheel) {
+    colorWheel.oninput = (e) => {
+        currentColor = e.target.value;
+        if (toolPen) toolPen.click();
+    };
+}
 
 noteColorBtns.forEach(btn => {
     btn.onclick = () => {
