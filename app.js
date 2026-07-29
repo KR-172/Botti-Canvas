@@ -67,8 +67,13 @@ let knownNotes = new Map();
 
 // UI Elements
 const toolPen = document.getElementById('tool-pen');
+const toolPencil = document.getElementById('tool-pencil');
+const toolHighlighter = document.getElementById('tool-highlighter');
+const toolRainbow = document.getElementById('tool-rainbow');
+const toolLaser = document.getElementById('tool-laser');
 const toolEraser = document.getElementById('tool-eraser');
 const toolPan = document.getElementById('tool-pan');
+const allTools = [toolPen, toolPencil, toolHighlighter, toolRainbow, toolLaser, toolEraser, toolPan];
 const colorWheel = document.getElementById('color-wheel');
 const addNoteBtn = document.getElementById('add-note-btn');
 const photoBtn = document.getElementById('photo-btn');
@@ -85,9 +90,24 @@ const noteColorBtns = document.querySelectorAll('.note-color-btn');
 let selectedNoteColor = '#ffeb3b';
 
 // Tools logic
-toolPen.onclick = () => { currentTool = 'pen'; toolPen.classList.add('active'); toolEraser.classList.remove('active'); toolPan.classList.remove('active'); canvas.classList.remove('pan-mode'); };
-toolEraser.onclick = () => { currentTool = 'eraser'; toolEraser.classList.add('active'); toolPen.classList.remove('active'); toolPan.classList.remove('active'); canvas.classList.remove('pan-mode'); };
-toolPan.onclick = () => { currentTool = 'pan'; toolPan.classList.add('active'); toolPen.classList.remove('active'); toolEraser.classList.remove('active'); canvas.classList.add('pan-mode'); };
+function setTool(toolName, btnEl) {
+    currentTool = toolName;
+    allTools.forEach(b => b.classList.remove('active'));
+    btnEl.classList.add('active');
+    if (toolName === 'pan') {
+        canvas.classList.add('pan-mode');
+    } else {
+        canvas.classList.remove('pan-mode');
+    }
+}
+
+toolPen.onclick = () => setTool('pen', toolPen);
+toolPencil.onclick = () => setTool('pencil', toolPencil);
+toolHighlighter.onclick = () => setTool('highlighter', toolHighlighter);
+toolRainbow.onclick = () => setTool('rainbow', toolRainbow);
+toolLaser.onclick = () => setTool('laser', toolLaser);
+toolEraser.onclick = () => setTool('eraser', toolEraser);
+toolPan.onclick = () => setTool('pan', toolPan);
 
 colorWheel.oninput = (e) => {
     currentColor = e.target.value;
@@ -172,6 +192,8 @@ function draw(e) {
             lastPinchCenter = { x: pinchCenterX, y: pinchCenterY };
 
             notesContainer.style.transform = `translate(${cameraX}px, ${cameraY}px) scale(${cameraZoom})`;
+            document.body.style.backgroundPosition = `${cameraX}px ${cameraY}px`;
+            document.body.style.backgroundSize = `${20 * cameraZoom}px ${20 * cameraZoom}px`;
             renderAll();
         }
         return;
@@ -188,6 +210,8 @@ function draw(e) {
         lastPanPos = pos;
         
         notesContainer.style.transform = `translate(${cameraX}px, ${cameraY}px) scale(${cameraZoom})`;
+        document.body.style.backgroundPosition = `${cameraX}px ${cameraY}px`;
+        document.body.style.backgroundSize = `${20 * cameraZoom}px ${20 * cameraZoom}px`;
         renderAll();
         return;
     }
@@ -195,22 +219,49 @@ function draw(e) {
     if (!isDrawing) return;
     e.preventDefault();
     const pos = getPointerPos(e);
+    if (currentTool === 'pencil') {
+        pos.x += (Math.random() - 0.5) * 4 * cameraZoom;
+        pos.y += (Math.random() - 0.5) * 4 * cameraZoom;
+    }
     const worldPos = { x: (pos.x - cameraX) / cameraZoom, y: (pos.y - cameraY) / cameraZoom };
     
     ctx.lineTo(pos.x, pos.y);
-    ctx.strokeStyle = currentTool === 'eraser' ? document.body.style.backgroundColor || '#1a1a2e' : currentColor;
-    ctx.lineWidth = (currentTool === 'eraser' ? 30 : 5) * cameraZoom;
+    
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
+    ctx.shadowBlur = 0;
+    ctx.globalCompositeOperation = 'source-over';
     
     if (currentTool === 'eraser') {
         ctx.globalCompositeOperation = 'destination-out';
         ctx.strokeStyle = 'rgba(0,0,0,1)';
+        ctx.lineWidth = 30 * cameraZoom;
+    } else if (currentTool === 'highlighter') {
+        ctx.globalCompositeOperation = 'multiply';
+        ctx.lineCap = 'butt';
+        ctx.strokeStyle = currentColor + '80'; // Hex + alpha
+        ctx.lineWidth = 20 * cameraZoom;
+    } else if (currentTool === 'pencil') {
+        ctx.strokeStyle = currentColor + 'A0'; // Reduced opacity
+        ctx.lineWidth = 2 * cameraZoom;
+    } else if (currentTool === 'laser') {
+        ctx.strokeStyle = '#ff0000'; // red laser
+        ctx.lineWidth = 4 * cameraZoom;
+        ctx.shadowColor = '#ff0000';
+        ctx.shadowBlur = 10 * cameraZoom;
+    } else if (currentTool === 'rainbow') {
+        ctx.lineWidth = 8 * cameraZoom;
+        ctx.strokeStyle = `hsl(${(currentLine.length * 5 + Date.now() / 10) % 360}, 100%, 50%)`;
     } else {
-        ctx.globalCompositeOperation = 'source-over';
+        ctx.strokeStyle = currentColor;
+        ctx.lineWidth = 5 * cameraZoom;
     }
     
     ctx.stroke();
+    
+    // Segment path to prevent overlap darkening on self
+    ctx.beginPath();
+    ctx.moveTo(pos.x, pos.y);
     
     currentLine.push({ x: worldPos.x, y: worldPos.y });
     lastPos = worldPos;
@@ -270,6 +321,8 @@ canvas.addEventListener('wheel', (e) => {
     cameraZoom *= direction;
     
     notesContainer.style.transform = `translate(${cameraX}px, ${cameraY}px) scale(${cameraZoom})`;
+    document.body.style.backgroundPosition = `${cameraX}px ${cameraY}px`;
+    document.body.style.backgroundSize = `${20 * cameraZoom}px ${20 * cameraZoom}px`;
     renderAll();
 }, { passive: false });
 
@@ -297,8 +350,18 @@ async function pollFirebase() {
                 notesContainer.innerHTML = '';
                 knownNotes.clear();
             }
+            const presenceContainer = document.getElementById('presence-container');
+            if (presenceContainer) presenceContainer.innerHTML = '';
             setTimeout(pollFirebase, 1500);
             return;
+        }
+
+        // Render Presence
+        if (data.presence) {
+            renderPresence(data.presence);
+        } else {
+            const presenceContainer = document.getElementById('presence-container');
+            if (presenceContainer) presenceContainer.innerHTML = '';
         }
 
         // Render Lines
@@ -358,26 +421,55 @@ function drawLineData(line) {
     if (!line.points || line.points.length < 2) return;
     
     ctx.beginPath();
-    ctx.moveTo(line.points[0].x * cameraZoom + cameraX, line.points[0].y * cameraZoom + cameraY); // Apply camera offset
+    ctx.moveTo(line.points[0].x * cameraZoom + cameraX, line.points[0].y * cameraZoom + cameraY);
     
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.shadowBlur = 0;
+    ctx.globalCompositeOperation = 'source-over';
+
     if (line.tool === 'eraser') {
         ctx.globalCompositeOperation = 'destination-out';
         ctx.strokeStyle = 'rgba(0,0,0,1)';
         ctx.lineWidth = 30 * cameraZoom;
+    } else if (line.tool === 'highlighter') {
+        ctx.globalCompositeOperation = 'multiply';
+        ctx.lineCap = 'butt';
+        ctx.strokeStyle = line.color + '80';
+        ctx.lineWidth = 20 * cameraZoom;
+    } else if (line.tool === 'pencil') {
+        ctx.strokeStyle = line.color + 'A0';
+        ctx.lineWidth = 2 * cameraZoom;
+    } else if (line.tool === 'laser') {
+        ctx.strokeStyle = '#ff0000';
+        ctx.lineWidth = 4 * cameraZoom;
+        ctx.shadowColor = '#ff0000';
+        ctx.shadowBlur = 10 * cameraZoom;
+    } else if (line.tool === 'rainbow') {
+        ctx.lineWidth = 8 * cameraZoom;
     } else {
-        ctx.globalCompositeOperation = 'source-over';
         ctx.strokeStyle = line.color;
         ctx.lineWidth = 5 * cameraZoom;
     }
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
     
-    for (let i = 1; i < line.points.length; i++) {
-        ctx.lineTo(line.points[i].x * cameraZoom + cameraX, line.points[i].y * cameraZoom + cameraY); // Apply camera offset
+    if (line.tool === 'rainbow') {
+        for (let i = 1; i < line.points.length; i++) {
+            ctx.beginPath();
+            ctx.moveTo(line.points[i-1].x * cameraZoom + cameraX, line.points[i-1].y * cameraZoom + cameraY);
+            ctx.lineTo(line.points[i].x * cameraZoom + cameraX, line.points[i].y * cameraZoom + cameraY);
+            ctx.strokeStyle = `hsl(${(i * 5 + line.timestamp / 10) % 360}, 100%, 50%)`;
+            ctx.stroke();
+        }
+    } else {
+        for (let i = 1; i < line.points.length; i++) {
+            ctx.lineTo(line.points[i].x * cameraZoom + cameraX, line.points[i].y * cameraZoom + cameraY);
+        }
+        ctx.stroke();
     }
-    ctx.stroke();
+    
     ctx.closePath();
     ctx.globalCompositeOperation = 'source-over';
+    ctx.shadowBlur = 0;
 }
 
 // Notes Logic
@@ -605,6 +697,66 @@ const undoLastAction = async () => {
 };
 
 if (undoBtn) undoBtn.onclick = undoLastAction;
+
+// Presence Heartbeat
+let lastPresenceUpdate = 0;
+function updatePresenceHeartbeat() {
+    if (!user || !user.first_name) return;
+    const now = Date.now();
+    if (now - lastPresenceUpdate > 5000) {
+        lastPresenceUpdate = now;
+        fetch(`${CANVAS_DB}/presence/${user.id}.json`, {
+            method: 'PUT',
+            body: JSON.stringify({
+                id: user.id,
+                first_name: user.first_name,
+                last_active: now
+            })
+        });
+    }
+}
+setInterval(updatePresenceHeartbeat, 5000);
+
+window.addEventListener('beforeunload', () => {
+    fetch(`${CANVAS_DB}/presence/${user.id}.json`, { method: 'DELETE', keepalive: true });
+});
+
+function renderPresence(presenceData) {
+    const container = document.getElementById('presence-container');
+    if (!container) return;
+    const now = Date.now();
+    let html = '';
+    const colors = ['#f44336', '#e91e63', '#9c27b0', '#673ab7', '#3f51b5', '#2196f3', '#009688', '#4caf50', '#ff9800'];
+    
+    Object.values(presenceData).forEach(p => {
+        if (now - p.last_active < 15000) {
+            const initial = p.first_name ? p.first_name.charAt(0).toUpperCase() : '?';
+            const color = colors[p.id % colors.length];
+            html += `<div class="presence-bubble" style="background-color: ${color};" title="${p.first_name}">${initial}</div>`;
+        }
+    });
+    container.innerHTML = html;
+}
+
+// Laser Cleanup & Animation Loop
+setInterval(() => {
+    let needsRender = false;
+    const now = Date.now();
+    knownLines.forEach((line, id) => {
+        if (line.tool === 'laser') {
+            if (now - line.timestamp > 2500) {
+                knownLines.delete(id);
+                needsRender = true;
+                if (line.user === user.first_name) {
+                    fetch(`${CANVAS_DB}/lines/${id}.json`, { method: 'DELETE' });
+                }
+            } else {
+                needsRender = true; // Still active, constantly render so we can animate later if needed
+            }
+        }
+    });
+    if (needsRender) renderAll();
+}, 200);
 
 // Start polling
 
