@@ -81,8 +81,9 @@ const toolCircle = document.getElementById('tool-circle');
 const toolText = document.getElementById('tool-text');
 const toolStamp = document.getElementById('tool-stamp');
 const toolEraser = document.getElementById('tool-eraser');
+const toolShapeEraser = document.getElementById('tool-shape-eraser');
 const toolPan = document.getElementById('tool-pan');
-const allTools = [toolPen, toolPencil, toolHighlighter, toolRainbow, toolLaser, toolLine, toolRect, toolCircle, toolText, toolStamp, toolEraser, toolPan];
+const allTools = [toolPen, toolPencil, toolHighlighter, toolRainbow, toolLaser, toolLine, toolRect, toolCircle, toolText, toolStamp, toolEraser, toolShapeEraser, toolPan];
 const colorWheel = document.getElementById('color-wheel');
 const stampMenu = document.getElementById('stamp-menu');
 
@@ -137,6 +138,7 @@ toolCircle?.addEventListener('click', () => setTool('circle', toolCircle));
 toolText?.addEventListener('click', () => setTool('text', toolText));
 toolStamp?.addEventListener('click', () => setTool('stamp', toolStamp));
 toolEraser?.addEventListener('click', () => setTool('eraser', toolEraser));
+toolShapeEraser?.addEventListener('click', () => setTool('shape-eraser', toolShapeEraser));
 toolPan?.addEventListener('click', () => setTool('pan', toolPan));
 
 let currentStamp = '⭐';
@@ -199,6 +201,31 @@ function startDrawing(e) {
         noteModal.dataset.dropX = worldPos.x;
         noteModal.dataset.dropY = worldPos.y;
         noteModal.dataset.type = 'raw-text';
+        return;
+    }
+    
+    if (currentTool === 'shape-eraser') {
+        const entries = Object.entries(knownLines).reverse();
+        for (const [id, line] of entries) {
+            if (['rect', 'circle', 'line'].includes(line.tool)) {
+                const p1 = line.points[0];
+                const p2 = line.points[1];
+                const minX = Math.min(p1.x, p2.x);
+                const maxX = Math.max(p1.x, p2.x);
+                const minY = Math.min(p1.y, p2.y);
+                const maxY = Math.max(p1.y, p2.y);
+                
+                const padding = 20 / cameraZoom;
+                
+                if (worldPos.x >= minX - padding && worldPos.x <= maxX + padding &&
+                    worldPos.y >= minY - padding && worldPos.y <= maxY + padding) {
+                    fetch(`${CANVAS_DB}/lines/${id}.json`, { method: 'DELETE' });
+                    delete knownLines[id];
+                    requestAnimationFrame(renderAllLines);
+                    break;
+                }
+            }
+        }
         return;
     }
     
