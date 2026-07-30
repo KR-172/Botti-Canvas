@@ -205,22 +205,33 @@ function startDrawing(e) {
     }
     
     if (currentTool === 'shape-eraser') {
-        const entries = Object.entries(knownLines).reverse();
+        const entries = Array.from(knownLines.entries()).reverse();
         for (const [id, line] of entries) {
             if (['rect', 'circle', 'line'].includes(line.tool)) {
                 const p1 = line.points[0];
                 const p2 = line.points[1];
-                const minX = Math.min(p1.x, p2.x);
-                const maxX = Math.max(p1.x, p2.x);
-                const minY = Math.min(p1.y, p2.y);
-                const maxY = Math.max(p1.y, p2.y);
+                let minX, maxX, minY, maxY;
+                
+                if (line.tool === 'circle') {
+                    const rx = Math.abs(p2.x - p1.x);
+                    const ry = Math.abs(p2.y - p1.y);
+                    minX = p1.x - rx;
+                    maxX = p1.x + rx;
+                    minY = p1.y - ry;
+                    maxY = p1.y + ry;
+                } else {
+                    minX = Math.min(p1.x, p2.x);
+                    maxX = Math.max(p1.x, p2.x);
+                    minY = Math.min(p1.y, p2.y);
+                    maxY = Math.max(p1.y, p2.y);
+                }
                 
                 const padding = 20 / cameraZoom;
                 
                 if (worldPos.x >= minX - padding && worldPos.x <= maxX + padding &&
                     worldPos.y >= minY - padding && worldPos.y <= maxY + padding) {
                     fetch(`${CANVAS_DB}/lines/${id}.json`, { method: 'DELETE' });
-                    delete knownLines[id];
+                    knownLines.delete(id);
                     requestAnimationFrame(renderAllLines);
                     break;
                 }
